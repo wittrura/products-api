@@ -108,4 +108,95 @@ app.MapGet("/api/products/{id:int}", async (AppDbContext db, int id) =>
         : Results.Ok(product);
 });
 
+app.MapPost("/api/products", async (AppDbContext db, ProductCreateRequest request) =>
+{
+    var validation = ProductValidators.Validate(request);
+    if (!validation.IsValid)
+        return Results.BadRequest(new { errors = validation.Errors });
+
+    // Validate category exists and is active
+    var category = await db.Categories
+        .AsNoTracking()
+        .Where(c => c.Id == request.CategoryId && c.IsActive)
+        .Select(c => new { c.Id, c.Name })
+        .SingleOrDefaultAsync();
+
+    if (category is null)
+        return Results.BadRequest(new { errors = new[] { "CategoryId must reference an active category." } });
+
+    var entity = new Product
+    {
+        Name = request.Name.Trim(),
+        Description = request.Description?.Trim(),
+        Price = request.Price,
+        CategoryId = category.Id,
+        StockQuantity = request.StockQuantity,
+        CreatedDate = DateTime.UtcNow,
+        IsActive = true
+    };
+
+    db.Products.Add(entity);
+    await db.SaveChangesAsync();
+
+    var response = new ProductResponse(
+        entity.Id,
+        entity.Name,
+        entity.Description,
+        entity.Price,
+        entity.StockQuantity,
+        entity.CreatedDate,
+        entity.CategoryId,
+        category.Name
+    );
+
+    return Results.Created($"/api/products/{entity.Id}", response);
+});
+
+app.MapPut("/api/products/{id:int}", async (AppDbContext db, int id, ProductUpdateRequest request) =>
+{
+    var validation = ProductValidators.Validate(request);
+    if (!validation.IsValid)
+        return Results.BadRequest(new { errors = validation.Errors });
+
+    // Ensure target product exists and is active - tracked, because we will modify it
+    var product = await db.Products
+        .Where(p => p.Id == id && p.IsActive)
+        .SingleOrDefaultAsync();
+
+    if (product is null)
+        return Results.NotFound();
+
+    // Validate category exists and is active
+    var category = await db.Categories
+        .AsNoTracking()
+        .Where(c => c.Id == request.CategoryId && c.IsActive)
+        .Select(c => new { c.Id, c.Name })
+        .SingleOrDefaultAsync();
+
+    if (category is null)
+        return Results.BadRequest(new { errors = new[] { "CategoryId must reference an active category." } });
+
+    // Apply updates
+    product.Name = request.Name.Trim();
+    product.Description = request.Description?.Trim();
+    product.Price = request.Price;
+    product.CategoryId = category.Id;
+    product.StockQuantity = request.StockQuantity;
+
+    await db.SaveChangesAsync();
+
+    var response = new ProductResponse(
+        product.Id,
+        product.Name,
+        product.Description,
+        product.Price,
+        product.StockQuantity,
+        product.CreatedDate,
+        product.CategoryId,
+        category.Name
+    );
+
+    return Results.Ok(response);
+});
+
 app.Run();
