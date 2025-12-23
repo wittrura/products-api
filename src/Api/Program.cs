@@ -214,4 +214,57 @@ app.MapDelete("/api/products/{id:int}", async (AppDbContext db, int id) =>
     return Results.NoContent();
 });
 
+app.MapGet("/api/categories/{id:int}/summary", async (AppDbContext db, int id) =>
+{
+    // Verify category exists
+    var category = await db.Categories
+        .AsNoTracking()
+        .Where(c => c.Id == id)
+        .Select(c => new { c.Id, c.Name, c.IsActive })
+        .SingleOrDefaultAsync();
+
+    if (category is null)
+        return Results.Problem(title: "Not found.", statusCode: StatusCodes.Status404NotFound);
+
+    // Currently we summarize products even if category is inactive
+    // To consider: if we want to treat inactive as 404 to customers
+    // if (!category.IsActive)
+    //     return Results.NotFound();
+
+    // Aggregate over products
+    var agg = await db.Products
+        .AsNoTracking()
+        .Where(p => p.CategoryId == id)
+        .GroupBy(_ => 1)
+        .Select(g => new
+        {
+            TotalProducts = g.Count(),
+            ActiveProducts = g.Count(p => p.IsActive),
+            OutOfStockCount = g.Count(p => p.IsActive && p.StockQuantity == 0),
+
+            AveragePrice = g.Where(p => p.IsActive).Average(p => (decimal?)p.Price) ?? 0m,
+            TotalInventoryValue = g.Where(p => p.IsActive).Sum(p => (decimal?)(p.Price * p.StockQuantity)) ?? 0m,
+
+            MinPrice = g.Where(p => p.IsActive).Min(p => (decimal?)p.Price) ?? 0m,
+            MaxPrice = g.Where(p => p.IsActive).Max(p => (decimal?)p.Price) ?? 0m
+        })
+        .SingleOrDefaultAsync();
+
+
+    // If category has zero products, agg will be null because GroupBy produces no rows - default to zeros
+    var response = new CategorySummaryResponse(
+        CategoryId: category.Id,
+        CategoryName: category.Name,
+        TotalProducts: agg?.TotalProducts ?? 0,
+        ActiveProducts: agg?.ActiveProducts ?? 0,
+        OutOfStockCount: agg?.OutOfStockCount ?? 0,
+        AveragePrice: agg?.AveragePrice ?? 0m,
+        TotalInventoryValue: agg?.TotalInventoryValue ?? 0m,
+        MinPrice: agg?.MinPrice ?? 0m,
+        MaxPrice: agg?.MaxPrice ?? 0m
+    );
+
+    return Results.Ok(response);
+});
+
 app.Run();
