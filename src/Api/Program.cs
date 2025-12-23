@@ -199,4 +199,19 @@ app.MapPut("/api/products/{id:int}", async (AppDbContext db, int id, ProductUpda
     return Results.Ok(response);
 });
 
+app.MapDelete("/api/products/{id:int}", async (AppDbContext db, int id) =>
+{
+    var product = await db.Products
+        .Where(p => p.Id == id && p.IsActive)
+        .SingleOrDefaultAsync();
+
+    if (product is null)
+        return Results.NotFound();
+
+    product.IsActive = false;
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
 app.Run();
