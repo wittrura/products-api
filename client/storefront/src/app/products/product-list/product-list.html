@@ -1,0 +1,26 @@
+<h2>Products</h2>
+
+<div *ngIf="loading()">loading…</div>
+
+<div *ngIf="error()" style="padding: 8px; border: 1px solid #ccc;">
+  {{ error() }}
+</div>
+
+<table *ngIf="!loading() && !error()" style="width:100%; border-collapse: collapse;">
+  <thead>
+    <tr>
+      <th style="text-align:left; border-bottom: 1px solid #ddd;">Name</th>
+      <th style="text-align:right; border-bottom: 1px solid #ddd;">Price</th>
+      <th style="text-align:left; border-bottom: 1px solid #ddd;">Category</th>
+      <th style="text-align:right; border-bottom: 1px solid #ddd;">Stock</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let p of products()">
+      <td style="padding: 6px 0;">{{ p.name }}</td>
+      <td style="padding: 6px 0; text-align:right;">{{ p.price | number:'1.2-2' }}</td>
+      <td style="padding: 6px 0;">{{ p.categoryName }}</td>
+      <td style="padding: 6px 0; text-align:right;">{{ p.stockQuantity }}</td>
+    </tr>
+  </tbody>
+</table>
