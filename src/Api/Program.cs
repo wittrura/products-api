@@ -1,4 +1,5 @@
 using Application.Dtos.Categories;
+using Application.Dtos.Products;
 using Application.Validation;
 using Domain.Entities;
 using Infrastructure.Persistence;
@@ -62,6 +63,49 @@ app.MapPost("/api/categories", async (AppDbContext db, CategoryCreateRequest req
 
     var response = new CategoryResponse(entity.Id, entity.Name, entity.Description);
     return Results.Created($"/api/categories/{entity.Id}", response);
+});
+
+app.MapGet("/api/products", async (AppDbContext db) =>
+{
+    var products = await db.Products
+        .AsNoTracking()
+        .Where(p => p.IsActive)
+        .OrderBy(p => p.Name)
+        .Select(p => new ProductResponse(
+            p.Id,
+            p.Name,
+            p.Description,
+            p.Price,
+            p.StockQuantity,
+            p.CreatedDate,
+            p.CategoryId,
+            p.Category!.Name
+        ))
+        .ToListAsync();
+
+    return Results.Ok(products);
+});
+
+app.MapGet("/api/products/{id:int}", async (AppDbContext db, int id) =>
+{
+    var product = await db.Products
+        .AsNoTracking()
+        .Where(p => p.IsActive && p.Id == id)
+        .Select(p => new ProductResponse(
+            p.Id,
+            p.Name,
+            p.Description,
+            p.Price,
+            p.StockQuantity,
+            p.CreatedDate,
+            p.CategoryId,
+            p.Category!.Name
+        ))
+        .SingleOrDefaultAsync();
+
+    return product is null
+        ? Results.NotFound()
+        : Results.Ok(product);
 });
 
 app.Run();
